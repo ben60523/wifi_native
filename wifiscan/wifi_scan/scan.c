@@ -11,7 +11,9 @@
 
 HANDLE hClient = NULL;
 PWLAN_INTERFACE_INFO pIfInfo = NULL;
+PWLAN_INTERFACE_INFO_LIST pIfList = NULL;
 PDOT11_SSID pDotSSid = NULL;
+
 unsigned int ifaceNum = 0, scanCounter = 0;
 
 void notificationCallback(PWLAN_NOTIFICATION_DATA pNotifData, PVOID pContext) {
@@ -21,8 +23,10 @@ void notificationCallback(PWLAN_NOTIFICATION_DATA pNotifData, PVOID pContext) {
 		case WLAN_NOTIFICATION_SOURCE_ACM:
 			if (pNotifData->NotificationCode == wlan_notification_acm_scan_complete) {
 				PWLAN_BSS_LIST WlanBssList;
-				if (WlanGetNetworkBssList(hClient, &pIfInfo->InterfaceGuid, pDotSSid, dot11_BSS_type_independent, FALSE, NULL, &WlanBssList) == ERROR_SUCCESS) {
-					wprintf(L"===========%ls=============\n", pIfInfo->strInterfaceDescription);
+				if (WlanGetNetworkBssList(hClient, &pNotifData->InterfaceGuid, pDotSSid, dot11_BSS_type_independent, FALSE, NULL, &WlanBssList) == ERROR_SUCCESS) {
+					WCHAR GuidString[40] = { 0 };
+					StringFromGUID2(&pNotifData->InterfaceGuid, (LPOLESTR)&GuidString, 39);
+					wprintf(L"===========%ws=============\n", GuidString);
 					for (int c = 0; c < WlanBssList->dwNumberOfItems; c++) {
 						wprintf(L"SSID: %hs\n", WlanBssList->wlanBssEntries[c].dot11Ssid.ucSSID);
 						wprintf(L"MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -37,7 +41,7 @@ void notificationCallback(PWLAN_NOTIFICATION_DATA pNotifData, PVOID pContext) {
 					}
 					scanCounter++;
 				}
-				
+
 			}
 			break;
 		default:
@@ -60,7 +64,6 @@ int wmain()
 
 	// variables used for WlanEnumInterfaces
 
-	PWLAN_INTERFACE_INFO_LIST pIfList = NULL;
 
 	PWLAN_CONNECTION_ATTRIBUTES pConnectInfo = NULL;
 	WLAN_OPCODE_VALUE_TYPE opCode = wlan_opcode_value_type_invalid;
