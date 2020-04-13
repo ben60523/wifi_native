@@ -85,21 +85,17 @@ int wmain()
 	else {
 		wprintf(L"Num Entries: %lu\n", pIfList->dwNumberOfItems);
 		wprintf(L"Current Index: %lu\n", pIfList->dwIndex);
-
 		for (ifaceNum = 0; ifaceNum < (int)pIfList->dwNumberOfItems; ifaceNum++) {
 			pIfInfo = (WLAN_INTERFACE_INFO*)&pIfList->InterfaceInfo[ifaceNum];
 			WLAN_RAW_DATA WlanRawData;
+			wprintf(L"%ls Scanning...\n", pIfInfo->strInterfaceDescription);
 			dwResult = WlanScan(hClient, &pIfInfo->InterfaceGuid, pDotSSid, &WlanRawData, NULL);
 			if (dwResult != ERROR_SUCCESS) {
 				wprintf(L"WlanScan failed with error: %u\n", dwResult);
 				return 1;
 			}
-			else {
-				wprintf(L"Scanning...\n");
-				Sleep(4000);
-			}
 		}
-
+		Sleep(4000);
 	}
 	if (pConnectInfo != NULL) {
 		WlanFreeMemory(pConnectInfo);
