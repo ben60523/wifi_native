@@ -12,26 +12,32 @@
 HANDLE hClient = NULL;
 PWLAN_INTERFACE_INFO pIfInfo = NULL;
 PDOT11_SSID pDotSSid = NULL;
+unsigned int ifaceNum = 0, scanCounter = 0;
 
-
-VOID CALLBACK notificationCallback(__in PWLAN_NOTIFICATION_DATA pNotifData, __in_opt PVOID pContext) {
+void notificationCallback(PWLAN_NOTIFICATION_DATA pNotifData, PVOID pContext) {
 	if (pNotifData != NULL) {
 		switch (pNotifData->NotificationSource)
 		{
 		case WLAN_NOTIFICATION_SOURCE_ACM:
-			if (pNotifData->NotificationCode == wlan_notification_acm_connection_complete) {
-				WLAN_BSS_LIST WlanBssList;
-				int ret;
-				ret = WlanGetNetworkBssList(hClient, &pIfInfo->InterfaceGuid, pDotSSid, dot11_BSS_type_infrastructure, FALSE, NULL, &WlanBssList);
-				if (ret != ERROR_SUCCESS) {
-					wprintf(L"WlanGetNetworkBssList failed with error: %u\n", ret);
-					return 1;
-				}
-				else {
-					for (int i = 0; i < WlanBssList.dwNumberOfItems; i++) {
-						wprintf(L"SSID: %s\n", WlanBssList.wlanBssEntries->dot11Ssid);
+			if (pNotifData->NotificationCode == wlan_notification_acm_scan_complete) {
+				PWLAN_BSS_LIST WlanBssList;
+				if (WlanGetNetworkBssList(hClient, &pIfInfo->InterfaceGuid, pDotSSid, dot11_BSS_type_independent, FALSE, NULL, &WlanBssList) == ERROR_SUCCESS) {
+					wprintf(L"===========%ls=============\n", pIfInfo->strInterfaceDescription);
+					for (int c = 0; c < WlanBssList->dwNumberOfItems; c++) {
+						wprintf(L"SSID: %hs\n", WlanBssList->wlanBssEntries[c].dot11Ssid.ucSSID);
+						wprintf(L"MAC: %02x:%02x:%02x:%02x:%02x:%02x\n",
+							WlanBssList->wlanBssEntries[c].dot11Bssid[0],
+							WlanBssList->wlanBssEntries[c].dot11Bssid[1],
+							WlanBssList->wlanBssEntries[c].dot11Bssid[2],
+							WlanBssList->wlanBssEntries[c].dot11Bssid[3],
+							WlanBssList->wlanBssEntries[c].dot11Bssid[4],
+							WlanBssList->wlanBssEntries[c].dot11Bssid[5]);
+						wprintf(L"RSSI: %ld\n", WlanBssList->wlanBssEntries[c].lRssi);
+						wprintf(L"---------------------------\n");
 					}
+					scanCounter++;
 				}
+				
 			}
 			break;
 		default:
@@ -49,15 +55,14 @@ int wmain()
 	DWORD dwRetVal = 0;
 	GUID interfaceGuid;
 	DWORD dwPrevNotifType = 0;
+	PWLAN_BSS_LIST WlanBssList;
 
-	unsigned int i, k = 0;
 
 	// variables used for WlanEnumInterfaces
 
 	PWLAN_INTERFACE_INFO_LIST pIfList = NULL;
 
 	PWLAN_CONNECTION_ATTRIBUTES pConnectInfo = NULL;
-	DWORD connectInfoSize = sizeof(WLAN_CONNECTION_ATTRIBUTES);
 	WLAN_OPCODE_VALUE_TYPE opCode = wlan_opcode_value_type_invalid;
 
 	dwResult = WlanOpenHandle(dwMaxClient, NULL, &dwCurVersion, &hClient);
@@ -66,7 +71,7 @@ int wmain()
 		return 1;
 	}
 
-	dwResult = WlanRegisterNotification(hClient, WLAN_NOTIFICATION_SOURCE_ALL, FALSE, notificationCallback, NULL, NULL, &dwPrevNotifType);
+	dwResult = WlanRegisterNotification(hClient, WLAN_NOTIFICATION_SOURCE_ALL, FALSE, (WLAN_NOTIFICATION_CALLBACK)notificationCallback, NULL, NULL, &dwPrevNotifType);
 	if (dwResult != ERROR_SUCCESS) {
 		wprintf(L"WlanRegisterNotification failed with error: %u\n", dwResult);
 		return 1;
@@ -80,8 +85,9 @@ int wmain()
 	else {
 		wprintf(L"Num Entries: %lu\n", pIfList->dwNumberOfItems);
 		wprintf(L"Current Index: %lu\n", pIfList->dwIndex);
-		for (i = 0; i < (int)pIfList->dwNumberOfItems; i++) {
-			pIfInfo = (WLAN_INTERFACE_INFO*)&pIfList->InterfaceInfo[i];
+
+		for (ifaceNum = 0; ifaceNum < (int)pIfList->dwNumberOfItems; ifaceNum++) {
+			pIfInfo = (WLAN_INTERFACE_INFO*)&pIfList->InterfaceInfo[ifaceNum];
 			WLAN_RAW_DATA WlanRawData;
 			dwResult = WlanScan(hClient, &pIfInfo->InterfaceGuid, pDotSSid, &WlanRawData, NULL);
 			if (dwResult != ERROR_SUCCESS) {
@@ -89,7 +95,8 @@ int wmain()
 				return 1;
 			}
 			else {
-				k++;
+				wprintf(L"Scanning...\n");
+				Sleep(4000);
 			}
 		}
 
@@ -104,10 +111,14 @@ int wmain()
 		pIfList = NULL;
 	}
 	if (hClient != NULL) {
-		WlanCloseHandle(hClient, NULL);
+		//WlanCloseHandle(hClient, NULL);
 	}
-	if (k == i) {
-		wprintf(L"WlanScan_ok");
+	if (scanCounter == ifaceNum) {
+		wprintf(L"WlanScan_ok\n");
+	}
+	else
+	{
+		wprintf(L"scan failed\n");
 	}
 	return dwRetVal;
 }
