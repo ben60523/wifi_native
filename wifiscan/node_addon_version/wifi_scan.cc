@@ -13,8 +13,17 @@
 #pragma comment(lib, "wlanapi.lib")
 #pragma comment(lib, "ole32.lib")
 
+struct ScanResult
+{
+  UCHAR *ssid;
+  long iRssi;
+};
+
 napi_value Scan(napi_env env, napi_callback_info info)
 {
+  napi_status status;
+  napi_value scan_result_arr = NULL;
+  status = napi_create_array(env, &scan_result_arr);
   DWORD dwMaxClient = 2;
   DWORD dwCurVersion = 0;
   DWORD dwResult = 0;
@@ -26,8 +35,7 @@ napi_value Scan(napi_env env, napi_callback_info info)
   PWLAN_INTERFACE_INFO pIfInfo = NULL;
   PWLAN_INTERFACE_INFO_LIST pIfList = NULL;
   PDOT11_SSID pDotSSid = NULL;
-
-  unsigned int ifaceNum = 0, scanCounter = 0;
+  unsigned int ifaceNum = 0;
 
   dwResult = WlanOpenHandle(dwMaxClient, NULL, &dwCurVersion, &hClient);
   if (dwResult != ERROR_SUCCESS)
@@ -62,6 +70,7 @@ napi_value Scan(napi_env env, napi_callback_info info)
       if (WlanGetNetworkBssList(hClient, &pIfInfo->InterfaceGuid, pDotSSid, dot11_BSS_type_independent, FALSE, NULL, &WlanBssList) == ERROR_SUCCESS)
       {
         WCHAR GuidString[40] = {0};
+        uint32_t correct_counter = 0;
         StringFromGUID2(pIfInfo->InterfaceGuid, (LPOLESTR)&GuidString, 39);
         wprintf(L"===========%ws=============\n", GuidString);
         for (int c = 0; c < WlanBssList->dwNumberOfItems; c++)
@@ -76,11 +85,22 @@ napi_value Scan(napi_env env, napi_callback_info info)
                   WlanBssList->wlanBssEntries[c].dot11Bssid[5]);
           wprintf(L"RSSI: %ld\n", WlanBssList->wlanBssEntries[c].lRssi);
           wprintf(L"---------------------------\n");
+          if (strstr((char *)WlanBssList->wlanBssEntries[c].dot11Ssid.ucSSID, "MediCam_"))
+          {
+            napi_value ssid, rssi, scan_result;
+            status = napi_create_object(env, &scan_result);
+            status = napi_create_string_utf8(env, (char *)WlanBssList->wlanBssEntries[c].dot11Ssid.ucSSID, (size_t)WlanBssList->wlanBssEntries[c].dot11Ssid.uSSIDLength, &ssid);
+            status = napi_create_int64(env, WlanBssList->wlanBssEntries[c].lRssi, &rssi);
+            status = napi_set_named_property(env, scan_result, "ssid", ssid);
+            status = napi_set_named_property(env, scan_result, "rssi", rssi);
+            status = napi_set_element(env, scan_result_arr, correct_counter, scan_result);
+            correct_counter++;
+          }
         }
-        scanCounter++;
       }
     }
-    return 0;
+    assert(status == napi_ok);
+    return scan_result_arr;
   }
 }
 
